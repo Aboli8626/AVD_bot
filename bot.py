@@ -129,7 +129,9 @@ def get_video_info(url):
         raise ValueError("اطلاعات ویدیو دریافت نشد.")
 
     if info.get("_type") == "playlist":
-        raise ValueError("لطفاً لینک مستقیم یک ویدیو را ارسال کنید.")
+        raise ValueError(
+            "لطفاً لینک مستقیم یک ویدیو را ارسال کنید."
+        )
 
     formats = info.get("formats") or []
 
@@ -157,7 +159,10 @@ def get_video_info(url):
         qualities = [None]
 
     return {
-        "title": info.get("title", "ویدیوی بدون عنوان"),
+        "title": info.get(
+            "title",
+            "ویدیوی بدون عنوان",
+        ),
         "qualities": qualities,
         "duration": info.get("duration"),
     }
@@ -176,10 +181,12 @@ def get_quality_keyboard(token, qualities):
     for quality in qualities:
 
         if quality is None:
+
             label = "بهترین کیفیت"
             quality_value = "best"
 
         else:
+
             label = f"{quality}p"
             quality_value = str(quality)
 
@@ -274,6 +281,7 @@ def download_video(url, quality, download_path):
     ]
 
     if not files:
+
         raise FileNotFoundError(
             "فایل ویدیویی پس از دانلود پیدا نشد."
         )
@@ -311,7 +319,9 @@ async def start_command(
         "1️⃣ لینک ویدیو رو ارسال کن.\n"
         "2️⃣ کیفیت موردنظرت رو انتخاب کن.\n"
         "3️⃣ ویدیو رو مستقیماً در تلگرام دریافت کن.\n\n"
-        "برای راهنمایی بیشتر دستور /help رو بفرست."
+        "برای راهنمایی بیشتر دستور /help رو بفرست.\n"
+        "و برای لغو درخواست های قبلی دستور /cancel رو بفرست.\n\n"
+        "نوسعه داده شده توسط @not_anyone07"
     )
 
     await update.effective_message.reply_text(
@@ -366,7 +376,7 @@ async def cancel_command(
 
 
 # ==================================================
-# دریافت لینک از کاربر
+# دریافت لینک یا دستور فارسی دانلودر
 # ==================================================
 
 async def link_handler(
@@ -379,7 +389,27 @@ async def link_handler(
     if not message or not message.text:
         return
 
-    url = extract_url(message.text)
+    user_text = message.text.strip()
+
+    # دستور فارسی دانلودر
+    normalized_text = (
+        user_text
+        .replace("ي", "ی")
+        .replace("ك", "ک")
+        .replace("\u200c", "")
+    )
+
+    if normalized_text == "دانلودر":
+
+        await start_command(
+            update,
+            context,
+        )
+
+        return
+
+    # تشخیص لینک ویدیو
+    url = extract_url(user_text)
 
     if not url:
         return
@@ -637,6 +667,7 @@ def main():
         .build()
     )
 
+    # دستور /start
     application.add_handler(
         CommandHandler(
             "start",
@@ -644,6 +675,7 @@ def main():
         )
     )
 
+    # دستور /help
     application.add_handler(
         CommandHandler(
             "help",
@@ -651,6 +683,7 @@ def main():
         )
     )
 
+    # دستور /cancel
     application.add_handler(
         CommandHandler(
             "cancel",
@@ -658,6 +691,7 @@ def main():
         )
     )
 
+    # دکمه‌های انتخاب کیفیت
     application.add_handler(
         CallbackQueryHandler(
             quality_callback,
@@ -665,6 +699,7 @@ def main():
         )
     )
 
+    # پیام‌های متنی و لینک‌ها
     application.add_handler(
         MessageHandler(
             filters.TEXT & ~filters.COMMAND,
