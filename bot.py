@@ -35,8 +35,6 @@ import yt_dlp
 
 TOKEN = os.getenv("TOKEN")
 
-MAX_UPLOAD_SIZE = 49 * 1024 * 1024
-
 DOWNLOAD_DIR = Path("/tmp/video_downloader")
 
 DOWNLOAD_DIR.mkdir(
@@ -126,9 +124,13 @@ def get_video_info(url):
         )
 
     if not info:
-        raise ValueError("اطلاعات ویدیو دریافت نشد.")
+
+        raise ValueError(
+            "اطلاعات ویدیو دریافت نشد."
+        )
 
     if info.get("_type") == "playlist":
+
         raise ValueError(
             "لطفاً لینک مستقیم یک ویدیو را ارسال کنید."
         )
@@ -290,14 +292,6 @@ def download_video(url, quality, download_path):
         files,
         key=lambda file: file.stat().st_size,
     )
-
-    file_size = video_file.stat().st_size
-
-    if file_size > MAX_UPLOAD_SIZE:
-
-        raise ValueError(
-            "حجم ویدیو بیشتر از محدودیت ارسال این ربات در تلگرام است."
-        )
 
     return video_file
 
@@ -512,11 +506,34 @@ async def quality_callback(
 
         return
 
-    quality = (
-        None
-        if quality_text == "best"
-        else int(quality_text)
-    )
+    # بررسی کیفیت انتخاب‌شده
+    if quality_text == "best":
+
+        quality = None
+
+    else:
+
+        try:
+
+            quality = int(quality_text)
+
+        except ValueError:
+
+            await query.answer(
+                "کیفیت انتخاب‌شده نامعتبر است.",
+                show_alert=True,
+            )
+
+            return
+
+        if quality not in pending.get("qualities", []):
+
+            await query.answer(
+                "این کیفیت در درخواست فعلی موجود نیست.",
+                show_alert=True,
+            )
+
+            return
 
     pending["downloading"] = True
 
@@ -524,8 +541,12 @@ async def quality_callback(
         "⬇️ دانلود شروع شد..."
     )
 
-    await query.edit_message_text(
-        "⏳ در حال دانلود ویدیو...\n"
+    # ذخیره همان پیام انتخاب کیفیت
+    status_message = query.message
+
+    # مرحله اول: نمایش وضعیت دانلود
+    await status_message.edit_text(
+        "⏳ در حال دانلود ویدیو...\n\n"
         "لطفاً کمی صبر کن."
     )
 
@@ -540,6 +561,7 @@ async def quality_callback(
 
     try:
 
+        # مرحله اول: دانلود ویدیو
         video_file = await asyncio.to_thread(
             download_video,
             pending["url"],
@@ -558,13 +580,15 @@ async def quality_callback(
         caption = (
             f"🎬 {title}\n"
             f"📺 کیفیت: {quality_label}\n\n"
-            "🤖 Video Downloader Bot"
+            "🤖 A-V-D Downloader"
         )
 
-        await query.message.reply_text(
+        # مرحله دوم: به‌روزرسانی همان پیام
+        await status_message.edit_text(
             "📤 دانلود تمام شد؛ در حال ارسال ویدیو..."
         )
 
+        # مرحله سوم: ارسال ویدیو
         with open(video_file, "rb") as video:
 
             await context.bot.send_video(
@@ -574,9 +598,16 @@ async def quality_callback(
                 supports_streaming=True,
             )
 
-        await query.message.reply_text(
-            "✅ ویدیو با موفقیت ارسال شد!"
-        )
+        # مرحله چهارم: حذف پیام وضعیت
+        try:
+
+            await status_message.delete()
+
+        except Exception:
+
+            logger.warning(
+                "ویدیو ارسال شد اما حذف پیام وضعیت ناموفق بود."
+            )
 
     except Exception as error:
 
@@ -585,20 +616,30 @@ async def quality_callback(
             error,
         )
 
-        await query.message.reply_text(
-            "❌ دانلود یا ارسال ویدیو ناموفق بود.\n\n"
-            "ممکنه ویدیو در دسترس نباشه، "
-            "حجمش بیش از حد مجاز باشه یا دانلود با خطا مواجه شده باشه.\n"
-            "لطفاً دوباره لینک رو ارسال کن."
-        )
+        # نمایش خطا در همان پیام وضعیت
+        try:
+
+            await status_message.edit_text(
+                "❌ دانلود یا ارسال ویدیو ناموفق بود.\n\n"
+                "ممکنه ویدیو در دسترس نباشه یا دانلود با خطا مواجه شده باشه.\n\n"
+                "لطفاً دوباره لینک رو ارسال کن."
+            )
+
+        except Exception:
+
+            logger.exception(
+                "خطا در ویرایش پیام وضعیت."
+            )
 
     finally:
 
+        # پاک کردن درخواست ذخیره‌شده
         context.user_data.pop(
             "pending_download",
             None,
         )
 
+        # حذف فایل‌های موقت
         shutil.rmtree(
             download_path,
             ignore_errors=True,
@@ -708,7 +749,7 @@ def main():
     )
 
     logger.info(
-        "Video Downloader Bot started successfully."
+        "A-V-D Downloader Bot started successfully."
     )
 
     application.run_polling()
